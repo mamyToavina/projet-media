@@ -8,14 +8,19 @@ import java.awt.BorderLayout;
 import java.awt.image.BufferedImage;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.Socket;
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
 import javax.swing.JFrame;
@@ -32,13 +37,11 @@ public final class MediaClient {
 
     public MediaClient() throws IOException, InterruptedException {
         this.k=new Socket("localhost",9080);
-        this.showListMusic();
+        this.sendTypeToServer();
+        this.showList();
         this.sendChoiceToServer();
-        this.playMusic();
+        this.startFile();
         
-        /*this.showListImage();
-        this.sendChoiceToServer();
-        this.showImage();*/
     }
 
     public void playMusic() throws IOException, InterruptedException {
@@ -58,11 +61,13 @@ public final class MediaClient {
                             @Override
                             public void run() {
                                 try {
-                                    //Thread.sleep(700);
+                                    Thread.sleep(700);
                                     jlPlayer.play();
                                     
                                 } catch (JavaLayerException e) {
                                     System.out.println(e.getMessage());
+                                } catch (InterruptedException ex) {
+                                    Logger.getLogger(MediaClient.class.getName()).log(Level.SEVERE, null, ex);
                                 }
                             }
                         }.start();
@@ -76,33 +81,53 @@ public final class MediaClient {
 
     }
     
-    /*public void playVideo(){
-        JFrame f=new JFrame();
-        f.setLocationRelativeTo(null);
-        f.setSize(1000,600);
-        f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        f.setVisible(true);
+    public void playVideo(){
+        byte[] data=new byte[4096];
+        ByteArrayOutputStream bout=new ByteArrayOutputStream();
         
-        Canvas c=new Canvas();
-        c.setBackground(Color.black);
-        JPanel p=new JPanel();
-        p.setLayout(new BorderLayout());
-        p.add(c);
-        p.add(p);
-        
-        NativeLibrary.addSearchPath(RuntimeUtil.getLibVlcLibraryName(),"C:/Program Files/VideoLAN/VLC");
-        Native.LoadLibrary(RuntimeUtil.getLibVlcLibraryName(),LibVlc.class);
-        MediaPlayerFactory mpf=new MediaPlayerFactory();
-        EmbeddedMediaPlayer emp =mpf.newEmbeddedMediaPlayer(new Win32FullScreenStrategy(f));
-        emp.setVideoSurface(mpf.newVideoSurface(c));
-        emp.toggleFullScreen();
-        emp.setEnableMouseInputHandlig(false);
-        emp.setEnableKeyInputHandling(false);
-        
-        String file="";
-        emp.prepareMedia(file);
-        emp.play();
-    }*/
+        new Thread() {
+            @Override
+            public void run() {
+                try {
+                    InputStream entree=k.getInputStream();
+                    InputStream mus;
+                    int byteRead = 0;
+                    File temp;
+                    FileOutputStream musicPlay;
+                    while(entree.read()!=-1){
+                        entree.read(data);
+                        mus=new ByteArrayInputStream(data);
+                        bout.write(data,0,byteRead);
+                        byte[] byteMusic=bout.toByteArray();
+                        temp=File.createTempFile("temporaire", "mp4");
+                        temp.deleteOnExit();
+                        musicPlay=new FileOutputStream(temp);
+                        musicPlay.write(byteMusic);
+                        
+                   
+                        video = new Media(temp.toURI().toString());
+                        
+                        new Thread() {
+                            @Override
+                            public void run() {
+                                try {
+                                    //Thread.sleep(700);
+                                    MediaPlayer media=new MediaPlayer(video);
+                                    media.play();
+                                    
+                                } catch (Exception e) {
+                                    System.out.println(e.getMessage());
+                                }
+                            }
+                        }.start();
+                        
+                    }
+                } catch (IOException ex) {
+                    
+                }
+            }
+        }.start();
+    }
     
     public void showImage() throws IOException{
         JFrame jFrame=new JFrame("image recu");
@@ -152,20 +177,36 @@ public final class MediaClient {
         }
     }
     
-    public void showListMusic() throws IOException{
+    public void sendTypeToServer() throws IOException{
+        System.out.println("type :1:MUSIC\n       2:IMAGES\n       3:VIDEOS\n       0:QUIT\n");
+        Scanner sc=new Scanner(System.in);
+        int num=sc.nextInt();
+        DataOutputStream out=new DataOutputStream(k.getOutputStream());
+        out.writeInt(num);
+        out.flush();
+        System.out.println("wait for a second...");
+    }
+    
+    public void showList() throws IOException{
         DataInputStream listMusic=new DataInputStream(k.getInputStream());
         String list=listMusic.readUTF();
         System.out.println(list);
     }
     
-    public void showListImage() throws IOException{
-        DataInputStream listImage=new DataInputStream(k.getInputStream());
-        String list=listImage.readUTF();
-        System.out.println(list);
+    public void startFile() throws IOException, InterruptedException{
+        DataInputStream listMusic=new DataInputStream(k.getInputStream());
+        String list=listMusic.readUTF();
+        switch (list) {
+            case "send music..." -> this.playMusic();
+            case "send photo..." -> this.showImage();
+            case "send video..." -> this.playVideo();
+            default -> this.sendTypeToServer();
+        }
     }
     
-    public static void main(String[] args) throws IOException, InterruptedException {
-        MediaClient mediaClient = new MediaClient();
+    
+    public static void main(String args[]) throws IOException, InterruptedException{
+        MediaClient mClient=new MediaClient();
         
     }
     

@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -30,7 +31,10 @@ public final class ServeurMedia {
     private Socket sc;
     private ArrayList<String> listeMusic=new ArrayList<>();
     private ArrayList<String> listeImage=new ArrayList<>();
-    public ServeurMedia() throws FileNotFoundException, IOException{
+    private ArrayList<String> listeVideo=new ArrayList<>();
+    private int mark;//1 ra music no andrasan client;2 ra sary 3 ra video
+    
+    public ServeurMedia() throws FileNotFoundException, IOException, InterruptedException{
         ss=new ServerSocket(9080);
         sc=ss.accept();
         String liste1="D:/music/07 Ndray andro any.mp3";
@@ -43,6 +47,11 @@ public final class ServeurMedia {
         String im3="D:/image/Acer_Wallpaper_03_5000x2814.jpg";
         String im4="D:/image/Planet9_Wallpaper_5000x2813.jpg";
         
+        String vid1="D:/image/Acer_Wallpaper_01_5000x2814.jpg";
+        String vid2="D:/image/Acer_Wallpaper_02_5000x2813.jpg";
+        String vid3="D:/image/Acer_Wallpaper_03_5000x2814.jpg";
+        String vid4="D:/image/Planet9_Wallpaper_5000x2813.jpg";
+        
         listeMusic.add(liste1);
         listeMusic.add(liste2);
         listeMusic.add(liste3);
@@ -53,13 +62,14 @@ public final class ServeurMedia {
         listeImage.add(im3);
         listeImage.add(im4);
         
-        /*this.sendListMusicToClient();
-        int req=this.getChoice();
-        this.sendMusicToPlay(req);*/
+        listeVideo.add(vid1);
+        listeVideo.add(vid2);
+        listeVideo.add(vid3);
+        listeVideo.add(vid4);
         
-        this.sendListImageToClient();
-        int req=this.getChoice();
-        this.sendImage(req);
+        this.checkListToSend();
+        this.sendMessage();
+        this.sendFile();
         
     }
     
@@ -94,9 +104,7 @@ public final class ServeurMedia {
         int buffer=0;
         int transfere=0;
         int pourcentage=0;
-        /*DataOutputStream dout=new DataOutputStream(getSc().getOutputStream());
-        dout.write(data, 0,data.length);
-        dout.flush();*/
+        
         DataOutputStream dout=new DataOutputStream(getSc().getOutputStream());
 
         while((buffer=dis.read(data))!=-1){
@@ -107,6 +115,8 @@ public final class ServeurMedia {
             System.out.println(pourcentage+"%");
             dout.flush();
         }
+        fis.close();
+        dis.close();
         
     }
     
@@ -133,12 +143,79 @@ public final class ServeurMedia {
  
     }
     
+    public void sendVideo(int num) throws FileNotFoundException, IOException, InterruptedException{
+        File f=new File(getListeVideo().get(num-1));
+        FileInputStream fis=new FileInputStream(f);
+        InputStream dis=new DataInputStream(fis); 
+        //byte[] data=dis.readAllBytes();
+        byte[] data=new byte[4096];
+        int buffer=0;
+        int transfere=0;
+        int pourcentage=0;
+        OutputStream dout=new DataOutputStream(getSc().getOutputStream());
+
+        while((buffer=dis.read(data))!=-1){
+            Thread.sleep(150);
+            dout.write(data, 0,buffer);
+            transfere+=buffer;
+            pourcentage=(int) (transfere*100/f.length());
+            System.out.println(pourcentage+"%");
+            dout.flush();
+        }
+    }
+    
     public int getChoice() throws IOException{
         System.out.println("Waiting for request...");
         DataInputStream choiceClient=new DataInputStream(getSc().getInputStream());
         int num=choiceClient.readInt();
         System.out.println(num);
         return num;
+    }
+    
+    public void checkListToSend() throws IOException{
+        DataInputStream choiceClient=new DataInputStream(getSc().getInputStream());
+        int num=choiceClient.readInt();
+        switch (num) {
+            case 1 -> this.sendListMusicToClient();
+            case 2 -> this.sendListImageToClient();
+        }
+        setMark(num);
+    }
+    
+    public void sendMessage() throws IOException{
+        DataOutputStream listToSend=new DataOutputStream(getSc().getOutputStream());
+        String msg;
+        switch (this.getMark()) {
+            case 1 -> {
+                msg="send music...";
+                listToSend.writeUTF(msg);
+                listToSend.flush();
+            }
+            case 2 -> {
+                msg="send photo...";
+                listToSend.writeUTF(msg);
+                listToSend.flush();
+            }
+            case 3 -> {
+                msg="send video...";
+                listToSend.writeUTF(msg);
+                listToSend.flush();
+            }
+            default -> {
+                msg="Not found!!!...";
+                listToSend.writeUTF(msg);
+                listToSend.flush();
+            }
+        }
+        
+    }
+    
+    public void sendFile() throws IOException, FileNotFoundException, InterruptedException{
+        switch (this.getMark()) {
+            case 1 -> this.sendMusicToPlay(this.getChoice());
+            case 2 -> this.sendImage(this.getChoice());
+            case 3 -> this.sendVideo(this.getChoice());
+        }
     }
     
     public void addListMusic(String path){
@@ -176,12 +253,29 @@ public final class ServeurMedia {
     public void setListeImage(ArrayList<String> listeImage) {
         this.listeImage = listeImage;
     }
+
+    public int getMark() {
+        return mark;
+    }
+
+    public void setMark(int mark) {
+        this.mark = mark;
+    }
+    
+    public ArrayList<String> getListeVideo() {
+        return listeVideo;
+    }
+
+    public void setListeVideo(ArrayList<String> listeVideo) {
+        this.listeVideo = listeVideo;
+    }
+    
     
     public static void main(String[] args) throws IOException, InterruptedException {
         ServeurMedia media = new ServeurMedia();
-        media.sendMusicToPlay(media.getChoice());
         
     }
+    
     
      
 }
